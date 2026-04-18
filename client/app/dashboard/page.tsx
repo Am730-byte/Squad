@@ -2,7 +2,7 @@ import { getServerSession } from 'next-auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Suspense } from 'react'
-import { authOptions } from '../api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth'
 import CreateWorkspaceForm from './components/CreateWorkspaceForm'
 import JoinWorkspaceForm from './components/JoinWorkspaceForm'
 
