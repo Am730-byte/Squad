@@ -1,0 +1,109 @@
+import express, { NextFunction, Request, Response } from "express"
+import { createServer } from "http"
+import { Server } from "socket.io"
+import { socketAuthMiddleware } from "../middleware/socketAuth"
+import { joinWorkspaceRoom } from "./handlers/roomHandlers"
+import { processChatMessage } from "./handlers/chatHandlers"
+import { handleWebRTCOffer, handleWebRTCAnswer, handleICECandidate } from "./handlers/webrtcHandlers"
+import { synchronizeWhiteboardDraw } from "./handlers/whiteboardHandlers"
+import workspacesRouter from "../routes/workspaces"
+
+const app = express()
+
+app.use(express.json())
+
+app.use("/api/workspaces", workspacesRouter)
+
+const httpServer = createServer(app)
+
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000"
+
+const io = new Server(httpServer, {
+  cors: {
+    origin: CLIENT_URL,
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+})
+
+io.use(socketAuthMiddleware)
+
+io.on('connection', (socket) => {
+  joinWorkspaceRoom(socket, io).catch((err) => {
+    console.error('Error joining workspace room:', err)
+    socket.emit('error', { message: 'Failed to join workspace' })
+    socket.disconnect()
+  })
+
+  socket.on('chat:message', (data: { content: string }) => {
+    const workspaceId = socket.handshake.query.workspaceId as string
+    const userId = socket.data.userId as string
+    processChatMessage(socket, io, workspaceId, userId, data.content).catch((err) => {
+      console.error('Error processing chat message:', err)
+      socket.emit('error', { message: 'Failed to send message' })
+    })
+  })
+
+  const workspaceId = socket.handshake.query.workspaceId as string
+  const userId = socket.data.userId as string
+
+  socket.on('webrtc:offer', (data) => {
+    try {
+      handleWebRTCOffer(socket, io, workspaceId, data)
+    } catch (err) {
+      console.error('Handler error:', err)
+      socket.emit('error', { message: 'An unexpected error occurred' })
+    }
+  })
+
+  socket.on('webrtc:answer', (data) => {
+    try {
+      handleWebRTCAnswer(socket, io, workspaceId, data)
+    } catch (err) {
+      console.error('Handler error:', err)
+      socket.emit('error', { message: 'An unexpected error occurred' })
+    }
+  })
+
+  socket.on('webrtc:ice-candidate', (data) => {
+    try {
+      handleICECandidate(socket, io, workspaceId, data)
+    } catch (err) {
+      console.error('Handler error:', err)
+      socket.emit('error', { message: 'An unexpected error occurred' })
+    }
+  })
+
+  socket.on('whiteboard:draw', (drawEvent) => {
+    try {
+      synchronizeWhiteboardDraw(socket, workspaceId, userId, drawEvent)
+    } catch (err) {
+      console.error('Handler error:', err)
+      socket.emit('error', { message: 'An unexpected error occurred' })
+    }
+  })
+
+  socket.on('disconnect', () => {
+    // Notify peers to close WebRTC connections
+    socket.to(workspaceId).emit('webrtc:peer-disconnected', { userId })
+  })
+})
+
+app.get("/", (_req, res) => {
+  res.status(200).json({ message: "server is running" })
+})
+
+// Global error-handling middleware — must be registered after all routes
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('Unhandled server error:', err)
+  res.status(500).json({ error: 'Internal server error' })
+})
+
+const PORT = process.env.PORT || 3001
+
+httpServer.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`)
+})
+
+export { app, io }
