@@ -1,16 +1,6 @@
-import { getServerSession } from 'next-auth'
-import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { authOptions } from '@/lib/auth'
 
-export default async function Home() {
-  const session = await getServerSession(authOptions)
-
-  // If already logged in, go straight to dashboard
-  if (session?.user) {
-    redirect('/dashboard')
-  }
-
+export default function Home() {
   return (
     <main className="min-h-screen bg-gray-950 text-white flex flex-col items-center justify-center px-4">
       <div className="max-w-2xl w-full text-center flex flex-col items-center gap-8">
@@ -53,10 +43,10 @@ export default async function Home() {
             Get Started
           </Link>
           <Link
-            href="/login"
+            href="/dashboard"
             className="bg-gray-800 hover:bg-gray-700 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-center border border-gray-700"
           >
-            Sign In
+            Go to Dashboard
           </Link>
         </div>
       </div>
