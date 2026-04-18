@@ -1,16 +1,7 @@
 import NextAuth, { NextAuthOptions } from 'next-auth'
 import GoogleProvider from 'next-auth/providers/google'
 import prisma from '../../../../lib/prisma'
-
-/**
- * Validates that a string is a properly formatted email address.
- * Requirement 9.1
- */
-export function isValidEmail(email: string): boolean {
-  // RFC 5322-inspired regex: local@domain.tld
-  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return EMAIL_REGEX.test(email)
-}
+import { isValidEmail } from '../../../../lib/validation'
 
 export const authOptions: NextAuthOptions = {
   providers: [
