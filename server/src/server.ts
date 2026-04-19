@@ -31,6 +31,7 @@ app.use(express.json())
 
 app.use("/api/workspaces", workspacesRouter)
 app.use("/api/dm", dmRouter)
+console.log('[ROUTES] /api/workspaces and /api/dm registered')
 
 const httpServer = createServer(app)
 

@@ -33,6 +33,7 @@ app.use((req, res, next) => {
 app.use(express_1.default.json());
 app.use("/api/workspaces", workspaces_1.default);
 app.use("/api/dm", dm_1.default);
+console.log('[ROUTES] /api/workspaces and /api/dm registered');
 const httpServer = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(httpServer, {
     cors: {
