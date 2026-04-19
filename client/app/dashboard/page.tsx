@@ -54,16 +54,21 @@ async function getWorkspaces(token: string): Promise<Workspace[]> {
 
 async function getSocketToken(userId: string): Promise<string | null> {
   try {
+    console.log('[DASHBOARD] Generating token for userId:', userId)
     // Generate JWT directly on the server using the session userId
     const jwt = await import('jsonwebtoken')
+    const jwtSecret = process.env.JWT_SECRET || 'dev-secret'
+    console.log('[DASHBOARD] JWT_SECRET configured:', jwtSecret ? 'yes (length: ' + jwtSecret.length + ')' : 'no')
+    
     const token = jwt.sign(
       { userId },
-      process.env.JWT_SECRET || 'dev-secret',
+      jwtSecret,
       { expiresIn: '24h' }
     )
+    console.log('[DASHBOARD] Generated token (first 20 chars):', token.substring(0, 20))
     return token
   } catch (err) {
-    console.error('Error generating socket token:', err)
+    console.error('[DASHBOARD] Error generating socket token:', err)
     return null
   }
 }
