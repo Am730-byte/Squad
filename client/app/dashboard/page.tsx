@@ -1,10 +1,11 @@
-import { getServerSession } from 'next-auth'
-import { redirect } from 'next/navigation'
-import Link from 'next/link'
-import { Suspense } from 'react'
-import { authOptions } from '@/lib/auth'
+'use client'
+
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import CreateWorkspaceForm from './components/CreateWorkspaceForm'
 import JoinWorkspaceForm from './components/JoinWorkspaceForm'
+import Link from 'next/link'
 
 interface Member {
   id: string
@@ -30,78 +31,67 @@ interface Workspace {
   memberships: Member[]
 }
 
-async function getWorkspaces(token: string): Promise<Workspace[]> {
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_SOCKET_URL}/api/workspaces`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      // Opt out of Next.js caching so the list is always fresh
-      cache: 'no-store',
-    })
+export default function DashboardPage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-    if (!res.ok) {
-      console.error('Failed to fetch workspaces:', res.status, res.statusText)
-      return []
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login')
+      return
     }
 
-    return res.json()
-  } catch (err) {
-    console.error('Error fetching workspaces:', err)
-    return []
-  }
-}
-
-async function getSocketToken(userId: string): Promise<string | null> {
-  try {
-    // Use the API route to generate the token
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
-    const res = await fetch(`${baseUrl}/api/socket/token`, {
-      headers: {
-        'x-user-id': userId, // Pass userId via header
-      },
-      cache: 'no-store',
-    })
-
-    if (!res.ok) {
-      console.error('[DASHBOARD] Failed to get token:', res.status)
-      return null
+    if (status === 'authenticated') {
+      fetchWorkspaces()
     }
+  }, [status, router])
 
-    const data = await res.json()
-    return data.token ?? null
-  } catch (err) {
-    console.error('[DASHBOARD] Error getting socket token:', err)
-    return null
-  }
-}
+  async function fetchWorkspaces() {
+    try {
+      setLoading(true)
+      setError(null)
 
-export default async function DashboardPage() {
-  const session = await getServerSession(authOptions)
+      // Get token from API route
+      const tokenRes = await fetch('/api/socket/token')
+      if (!tokenRes.ok) {
+        throw new Error('Failed to get authentication token')
+      }
+      const { token } = await tokenRes.json()
 
-  if (!session?.user) {
-    redirect('/login')
-  }
+      // Fetch workspaces from Railway server
+      const workspacesRes = await fetch(`${process.env.NEXT_PUBLIC_SOCKET_URL}/api/workspaces`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
-  let token: string | null = null
-  let workspaces: Workspace[] = []
-  let error: string | null = null
+      if (!workspacesRes.ok) {
+        throw new Error(`Failed to fetch workspaces: ${workspacesRes.status}`)
+      }
 
-  try {
-    console.log('[DASHBOARD] Getting token for user:', session.user.id)
-    token = await getSocketToken(session.user.id)
-    console.log('[DASHBOARD] Token received:', token ? 'yes' : 'no')
-    
-    if (token) {
-      console.log('[DASHBOARD] Fetching workspaces...')
-      workspaces = await getWorkspaces(token)
-      console.log('[DASHBOARD] Workspaces fetched:', workspaces.length)
-    } else {
-      error = 'Failed to generate authentication token'
+      const data = await workspacesRes.json()
+      setWorkspaces(data)
+    } catch (err) {
+      console.error('Error fetching workspaces:', err)
+      setError(err instanceof Error ? err.message : 'Unknown error occurred')
+    } finally {
+      setLoading(false)
     }
-  } catch (err) {
-    console.error('[DASHBOARD] Error in dashboard:', err)
-    error = err instanceof Error ? err.message : 'Unknown error occurred'
+  }
+
+  if (status === 'loading' || loading) {
+    return (
+      <main className="min-h-screen bg-gray-950 text-white px-4 py-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex items-center justify-center py-24">
+            <p className="text-gray-400">Loading...</p>
+          </div>
+        </div>
+      </main>
+    )
   }
 
   return (
@@ -111,12 +101,8 @@ export default async function DashboardPage() {
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-white">Your Workspaces</h1>
           <div className="flex gap-3">
-            <Suspense fallback={null}>
-              <CreateWorkspaceForm />
-            </Suspense>
-            <Suspense fallback={null}>
-              <JoinWorkspaceForm />
-            </Suspense>
+            <CreateWorkspaceForm />
+            <JoinWorkspaceForm />
           </div>
         </div>
 
@@ -124,6 +110,12 @@ export default async function DashboardPage() {
         {error && (
           <div className="bg-red-900/20 border border-red-800 rounded-lg p-4 mb-6">
             <p className="text-red-400 text-sm">Error: {error}</p>
+            <button
+              onClick={fetchWorkspaces}
+              className="mt-2 text-sm text-indigo-400 hover:text-indigo-300"
+            >
+              Try again
+            </button>
           </div>
         )}
 
