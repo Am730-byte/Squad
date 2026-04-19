@@ -52,19 +52,18 @@ async function getWorkspaces(token: string): Promise<Workspace[]> {
   }
 }
 
-async function getSocketToken(): Promise<string | null> {
+async function getSocketToken(userId: string): Promise<string | null> {
   try {
-    // Call our own Next.js API route to mint a JWT using the current session
-    const res = await fetch(
-      `${process.env.NEXTAUTH_URL ?? 'http://localhost:3000'}/api/socket/token`,
-      { cache: 'no-store' }
+    // Generate JWT directly on the server using the session userId
+    const jwt = await import('jsonwebtoken')
+    const token = jwt.sign(
+      { userId },
+      process.env.JWT_SECRET || 'dev-secret',
+      { expiresIn: '24h' }
     )
-
-    if (!res.ok) return null
-
-    const data = await res.json()
-    return data.token ?? null
-  } catch {
+    return token
+  } catch (err) {
+    console.error('Error generating socket token:', err)
     return null
   }
 }
@@ -76,7 +75,7 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
-  const token = await getSocketToken()
+  const token = await getSocketToken(session.user.id)
   const workspaces: Workspace[] = token ? await getWorkspaces(token) : []
 
   return (
