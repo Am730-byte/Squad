@@ -22,6 +22,28 @@ interface PageProps {
   params: { id: string }
 }
 
+function InviteButton({ workspaceId }: { workspaceId: string }) {
+  const [copied, setCopied] = useState(false)
+
+  function copyId() {
+    navigator.clipboard.writeText(workspaceId)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg">
+      <span className="text-xs text-gray-400 font-mono">{workspaceId.slice(0, 8)}…</span>
+      <button
+        onClick={copyId}
+        className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+      >
+        {copied ? '✓ Copied!' : 'Copy ID'}
+      </button>
+    </div>
+  )
+}
+
 export default function WorkspacePage({ params }: PageProps) {
   const { data: session, status } = useSession()
   const workspaceId = params.id
@@ -135,6 +157,12 @@ export default function WorkspacePage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col h-screen bg-gray-950 overflow-hidden">
+      {/* Top bar with workspace ID and invite */}
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800 flex-shrink-0">
+        <span className="text-sm font-medium text-white">Workspace</span>
+        <InviteButton workspaceId={workspaceId} />
+      </div>
+
       {/* Connection status banner */}
       {connectionError && (
         <div className="px-4 py-2 bg-red-900/70 border-b border-red-700 text-sm text-red-300 flex-shrink-0">
