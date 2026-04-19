@@ -109,11 +109,13 @@ app.get("/", (_req, res) => {
 app.get("/health", (_req, res) => {
     res.status(200).json({
         status: "ok",
+        version: BUILD_VERSION,
         port: PORT,
         clientUrl: CLIENT_URL,
         nodeEnv: process.env.NODE_ENV,
         hasDatabase: !!process.env.DATABASE_URL,
         hasJwtSecret: !!process.env.JWT_SECRET,
+        routes: ['/api/workspaces', '/api/dm'],
     });
 });
 app.get("/healthz", (_req, res) => {
@@ -127,6 +129,7 @@ app.use((err, _req, res, _next) => {
     res.status(500).json({ error: 'Internal server error' });
 });
 const PORT = parseInt(process.env.PORT || '3001', 10);
+const BUILD_VERSION = '2.0.0'; // bump to force Railway rebuild
 httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
     console.log(`Binding to 0.0.0.0:${PORT}`);
