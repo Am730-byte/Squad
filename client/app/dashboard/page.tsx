@@ -60,7 +60,8 @@ async function getSocketToken(userId: string): Promise<string | null> {
     const jwtSecret = process.env.JWT_SECRET || 'dev-secret'
     console.log('[DASHBOARD] JWT_SECRET configured:', jwtSecret ? 'yes (length: ' + jwtSecret.length + ')' : 'no')
     
-    const token = jwt.sign(
+    // jwt.sign is synchronous, not async
+    const token = jwt.default.sign(
       { userId },
       jwtSecret,
       { expiresIn: '24h' }
