@@ -77,6 +77,16 @@ export async function joinWorkspaceRoom(socket: Socket, io: Server): Promise<voi
       image: user.image,
     })
 
+    // Tell existing participants to initiate WebRTC offers to the new user
+    const existingParticipants = roomStateManager.getParticipants(workspaceId)
+      .filter(p => p.userId !== userId)
+
+    for (const participant of existingParticipants) {
+      io.to(participant.socketId).emit('webrtc:create-offer', {
+        targetUserId: userId,
+      })
+    }
+
     // Fetch last 50 messages and send chat history to the joining socket
     const messages = await prisma.message.findMany({
       where: { workspaceId },

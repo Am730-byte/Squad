@@ -129,8 +129,7 @@ export default function WhiteboardPanel({
     if (!socket) return
 
     const handleWhiteboardDraw = (whiteboardEvent: WhiteboardEvent) => {
-      // Ignore events from ourselves (already drawn locally)
-      if (whiteboardEvent.userId === currentUserId) return
+      // Server already excludes the sender, so apply all received events
       applyRemoteDrawEvent(whiteboardEvent.event)
     }
 
