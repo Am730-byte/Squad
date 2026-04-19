@@ -83,8 +83,26 @@ export default async function DashboardPage() {
     redirect('/login')
   }
 
-  const token = await getSocketToken(session.user.id)
-  const workspaces: Workspace[] = token ? await getWorkspaces(token) : []
+  let token: string | null = null
+  let workspaces: Workspace[] = []
+  let error: string | null = null
+
+  try {
+    console.log('[DASHBOARD] Getting token for user:', session.user.id)
+    token = await getSocketToken(session.user.id)
+    console.log('[DASHBOARD] Token received:', token ? 'yes' : 'no')
+    
+    if (token) {
+      console.log('[DASHBOARD] Fetching workspaces...')
+      workspaces = await getWorkspaces(token)
+      console.log('[DASHBOARD] Workspaces fetched:', workspaces.length)
+    } else {
+      error = 'Failed to generate authentication token'
+    }
+  } catch (err) {
+    console.error('[DASHBOARD] Error in dashboard:', err)
+    error = err instanceof Error ? err.message : 'Unknown error occurred'
+  }
 
   return (
     <main className="min-h-screen bg-gray-950 text-white px-4 py-10">
@@ -101,6 +119,13 @@ export default async function DashboardPage() {
             </Suspense>
           </div>
         </div>
+
+        {/* Error message */}
+        {error && (
+          <div className="bg-red-900/20 border border-red-800 rounded-lg p-4 mb-6">
+            <p className="text-red-400 text-sm">Error: {error}</p>
+          </div>
+        )}
 
         {/* Workspace grid */}
         {workspaces.length === 0 ? (
