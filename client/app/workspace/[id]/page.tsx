@@ -19,21 +19,16 @@ interface Participant {
 }
 
 interface PageProps {
-  params: Promise<{ id: string }>
+  params: { id: string }
 }
 
 export default function WorkspacePage({ params }: PageProps) {
   const { data: session, status } = useSession()
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null)
+  const workspaceId = params.id
   const [socket, setSocket] = useState<Socket | null>(null)
   const [participants, setParticipants] = useState<Participant[]>([])
   const [connected, setConnected] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
-
-  // Resolve params (Next.js 15 async params)
-  useEffect(() => {
-    params.then((resolved) => setWorkspaceId(resolved.id))
-  }, [params])
 
   // Connect to Socket.IO once session and workspaceId are available
   useEffect(() => {
@@ -48,7 +43,7 @@ export default function WorkspacePage({ params }: PageProps) {
       })
       .then((data: { token: string }) => {
         // Connect to Socket.IO server with token auth and workspaceId query param
-        newSocket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5174', {
+        newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
           auth: { token: data.token },
           query: { workspaceId },
         })
