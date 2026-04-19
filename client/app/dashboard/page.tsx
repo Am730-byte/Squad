@@ -54,22 +54,24 @@ async function getWorkspaces(token: string): Promise<Workspace[]> {
 
 async function getSocketToken(userId: string): Promise<string | null> {
   try {
-    console.log('[DASHBOARD] Generating token for userId:', userId)
-    // Generate JWT directly on the server using the session userId
-    const jwt = await import('jsonwebtoken')
-    const jwtSecret = process.env.JWT_SECRET || 'dev-secret'
-    console.log('[DASHBOARD] JWT_SECRET configured:', jwtSecret ? 'yes (length: ' + jwtSecret.length + ')' : 'no')
-    
-    // jwt.sign is synchronous, not async
-    const token = jwt.default.sign(
-      { userId },
-      jwtSecret,
-      { expiresIn: '24h' }
-    )
-    console.log('[DASHBOARD] Generated token (first 20 chars):', token.substring(0, 20))
-    return token
+    // Use the API route to generate the token
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const res = await fetch(`${baseUrl}/api/socket/token`, {
+      headers: {
+        'x-user-id': userId, // Pass userId via header
+      },
+      cache: 'no-store',
+    })
+
+    if (!res.ok) {
+      console.error('[DASHBOARD] Failed to get token:', res.status)
+      return null
+    }
+
+    const data = await res.json()
+    return data.token ?? null
   } catch (err) {
-    console.error('[DASHBOARD] Error generating socket token:', err)
+    console.error('[DASHBOARD] Error getting socket token:', err)
     return null
   }
 }
