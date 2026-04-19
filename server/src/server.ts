@@ -10,13 +10,26 @@ import workspacesRouter from "../routes/workspaces"
 
 const app = express()
 
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000"
+
+// CORS for all REST routes
+app.use((req: Request, res: Response, next: NextFunction) => {
+  res.setHeader("Access-Control-Allow-Origin", CLIENT_URL)
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+  res.setHeader("Access-Control-Allow-Credentials", "true")
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204)
+    return
+  }
+  next()
+})
+
 app.use(express.json())
 
 app.use("/api/workspaces", workspacesRouter)
 
 const httpServer = createServer(app)
-
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000"
 
 const io = new Server(httpServer, {
   cors: {
