@@ -106,6 +106,17 @@ app.get("/", (_req, res) => {
   res.status(200).json({ message: "server is running" })
 })
 
+app.get("/health", (_req, res) => {
+  res.status(200).json({
+    status: "ok",
+    port: PORT,
+    clientUrl: CLIENT_URL,
+    nodeEnv: process.env.NODE_ENV,
+    hasDatabase: !!process.env.DATABASE_URL,
+    hasJwtSecret: !!process.env.JWT_SECRET,
+  })
+})
+
 // Global error-handling middleware — must be registered after all routes
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
@@ -117,6 +128,14 @@ const PORT = parseInt(process.env.PORT || '3001', 10)
 
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`)
+  console.log(`Binding to 0.0.0.0:${PORT}`)
+  console.log(`CLIENT_URL: ${CLIENT_URL}`)
+  console.log(`NODE_ENV: ${process.env.NODE_ENV || 'development'}`)
+})
+
+httpServer.on('error', (err) => {
+  console.error('Server error:', err)
+  process.exit(1)
 })
 
 export { app, io }
