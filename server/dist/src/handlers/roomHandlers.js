@@ -23,6 +23,9 @@ const validation_1 = require("../utils/validation");
 async function joinWorkspaceRoom(socket, io) {
     try {
         const workspaceId = socket.handshake.query.workspaceId;
+        // Skip workspace join for DM-only connections
+        if (!workspaceId || workspaceId === 'dm')
+            return;
         const userId = socket.data.userId;
         // Validate workspaceId UUID format (Requirement 9.7)
         if (!(0, validation_1.isValidUUID)(workspaceId)) {

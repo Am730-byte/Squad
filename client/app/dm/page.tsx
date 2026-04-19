@@ -58,7 +58,7 @@ export default function DMPage() {
         setToken(t)
         const s = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
           auth: { token: t },
-          query: { workspaceId: 'dm' }, // dummy workspaceId for DM-only connections
+          // No workspaceId - this is a DM-only connection
         })
         setSocket(s)
         return t

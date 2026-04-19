@@ -19,6 +19,9 @@ import { isValidUUID } from '../utils/validation'
 export async function joinWorkspaceRoom(socket: Socket, io: Server): Promise<void> {
   try {
     const workspaceId = socket.handshake.query.workspaceId as string
+
+    // Skip workspace join for DM-only connections
+    if (!workspaceId || workspaceId === 'dm') return
     const userId = socket.data.userId as string
 
     // Validate workspaceId UUID format (Requirement 9.7)
