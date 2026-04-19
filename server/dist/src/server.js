@@ -110,6 +110,10 @@ app.get("/health", (_req, res) => {
         hasJwtSecret: !!process.env.JWT_SECRET,
     });
 });
+app.get("/healthz", (_req, res) => {
+    // Simple health check for Railway
+    res.status(200).send("OK");
+});
 // Global error-handling middleware — must be registered after all routes
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err, _req, res, _next) => {
