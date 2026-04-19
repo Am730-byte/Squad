@@ -15,10 +15,22 @@ const whiteboardHandlers_1 = require("./handlers/whiteboardHandlers");
 const workspaces_1 = __importDefault(require("../routes/workspaces"));
 const app = (0, express_1.default)();
 exports.app = app;
+const CLIENT_URL = process.env.CLIENT_URL?.replace(/\/$/, '') || "http://localhost:3000";
+// CORS for all REST routes
+app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", CLIENT_URL);
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    if (req.method === "OPTIONS") {
+        res.sendStatus(204);
+        return;
+    }
+    next();
+});
 app.use(express_1.default.json());
 app.use("/api/workspaces", workspaces_1.default);
 const httpServer = (0, http_1.createServer)(app);
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 const io = new socket_io_1.Server(httpServer, {
     cors: {
         origin: CLIENT_URL,
@@ -94,7 +106,7 @@ app.use((err, _req, res, _next) => {
     console.error('Unhandled server error:', err);
     res.status(500).json({ error: 'Internal server error' });
 });
-const PORT = process.env.PORT || 3001;
-httpServer.listen(PORT, () => {
+const PORT = parseInt(process.env.PORT || '3001', 10);
+httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
 });

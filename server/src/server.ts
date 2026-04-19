@@ -10,7 +10,7 @@ import workspacesRouter from "../routes/workspaces"
 
 const app = express()
 
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000"
+const CLIENT_URL = process.env.CLIENT_URL?.replace(/\/$/, '') || "http://localhost:3000"
 
 // CORS for all REST routes
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -113,9 +113,9 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-const PORT = process.env.PORT || 3001
+const PORT = parseInt(process.env.PORT || '3001', 10)
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`)
 })
 
