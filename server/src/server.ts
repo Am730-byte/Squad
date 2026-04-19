@@ -6,7 +6,9 @@ import { joinWorkspaceRoom } from "./handlers/roomHandlers"
 import { processChatMessage } from "./handlers/chatHandlers"
 import { handleWebRTCOffer, handleWebRTCAnswer, handleICECandidate } from "./handlers/webrtcHandlers"
 import { synchronizeWhiteboardDraw } from "./handlers/whiteboardHandlers"
+import { registerDMHandlers } from "./handlers/dmHandlers"
 import workspacesRouter from "../routes/workspaces"
+import dmRouter from "../routes/dm"
 
 const app = express()
 
@@ -28,6 +30,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 app.use(express.json())
 
 app.use("/api/workspaces", workspacesRouter)
+app.use("/api/dm", dmRouter)
 
 const httpServer = createServer(app)
 
@@ -42,6 +45,11 @@ const io = new Server(httpServer, {
 io.use(socketAuthMiddleware)
 
 io.on('connection', (socket) => {
+  const userId = socket.data.userId as string
+
+  // Register DM handlers for this socket
+  registerDMHandlers(socket, io, userId)
+
   joinWorkspaceRoom(socket, io).catch((err) => {
     console.error('Error joining workspace room:', err)
     socket.emit('error', { message: 'Failed to join workspace' })
@@ -58,7 +66,6 @@ io.on('connection', (socket) => {
   })
 
   const workspaceId = socket.handshake.query.workspaceId as string
-  const userId = socket.data.userId as string
 
   socket.on('webrtc:offer', (data) => {
     try {

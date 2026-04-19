@@ -12,7 +12,9 @@ const roomHandlers_1 = require("./handlers/roomHandlers");
 const chatHandlers_1 = require("./handlers/chatHandlers");
 const webrtcHandlers_1 = require("./handlers/webrtcHandlers");
 const whiteboardHandlers_1 = require("./handlers/whiteboardHandlers");
+const dmHandlers_1 = require("./handlers/dmHandlers");
 const workspaces_1 = __importDefault(require("../routes/workspaces"));
+const dm_1 = __importDefault(require("../routes/dm"));
 const app = (0, express_1.default)();
 exports.app = app;
 const CLIENT_URL = process.env.CLIENT_URL?.replace(/\/$/, '') || "http://localhost:3000";
@@ -30,6 +32,7 @@ app.use((req, res, next) => {
 });
 app.use(express_1.default.json());
 app.use("/api/workspaces", workspaces_1.default);
+app.use("/api/dm", dm_1.default);
 const httpServer = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(httpServer, {
     cors: {
@@ -41,6 +44,9 @@ const io = new socket_io_1.Server(httpServer, {
 exports.io = io;
 io.use(socketAuth_1.socketAuthMiddleware);
 io.on('connection', (socket) => {
+    const userId = socket.data.userId;
+    // Register DM handlers for this socket
+    (0, dmHandlers_1.registerDMHandlers)(socket, io, userId);
     (0, roomHandlers_1.joinWorkspaceRoom)(socket, io).catch((err) => {
         console.error('Error joining workspace room:', err);
         socket.emit('error', { message: 'Failed to join workspace' });
@@ -55,7 +61,6 @@ io.on('connection', (socket) => {
         });
     });
     const workspaceId = socket.handshake.query.workspaceId;
-    const userId = socket.data.userId;
     socket.on('webrtc:offer', (data) => {
         try {
             (0, webrtcHandlers_1.handleWebRTCOffer)(socket, io, workspaceId, data);

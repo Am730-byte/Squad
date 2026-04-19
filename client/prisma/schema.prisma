@@ -18,9 +18,11 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ownedWorkspaces Workspace[]  @relation("WorkspaceOwner")
-  memberships     Membership[]
-  messages        Message[]
+  ownedWorkspaces   Workspace[]     @relation("WorkspaceOwner")
+  memberships       Membership[]
+  messages          Message[]
+  sentDMs           DirectMessage[] @relation("DMSender")
+  receivedDMs       DirectMessage[] @relation("DMReceiver")
 }
 
 model Workspace {
@@ -66,4 +68,19 @@ model Message {
 
   @@index([workspaceId, createdAt])
   @@index([userId])
+}
+
+model DirectMessage {
+  id         String   @id @default(uuid())
+  content    String
+  senderId   String
+  receiverId String
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("DMSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("DMReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId])
+  @@index([receiverId, senderId])
+  @@index([createdAt])
 }
