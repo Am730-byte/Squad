@@ -41,7 +41,7 @@ export default function JoinWorkspaceForm() {
         return
       }
 
-      const res = await fetch(`/api/workspaces/${workspaceId.trim()}/join`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_SOCKET_URL}/api/workspaces/${workspaceId.trim()}/join`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

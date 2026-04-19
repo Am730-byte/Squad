@@ -32,7 +32,7 @@ interface Workspace {
 
 async function getWorkspaces(token: string): Promise<Workspace[]> {
   try {
-    const res = await fetch('http://localhost:3001/api/workspaces', {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_SOCKET_URL}/api/workspaces`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
