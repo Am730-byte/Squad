@@ -51,6 +51,7 @@ export default function WorkspacePage({ params }: PageProps) {
   const [participants, setParticipants] = useState<Participant[]>([])
   const [connected, setConnected] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [initializing, setInitializing] = useState(true)
 
   // Connect to Socket.IO once session and workspaceId are available
   useEffect(() => {
@@ -68,11 +69,16 @@ export default function WorkspacePage({ params }: PageProps) {
         newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
           auth: { token: data.token },
           query: { workspaceId },
+          reconnection: true,
+          reconnectionAttempts: 10,
+          reconnectionDelay: 1000,
+          timeout: 20000,
         })
 
         newSocket.on('connect', () => {
           setConnected(true)
           setConnectionError(null)
+          setInitializing(false)
         })
 
         newSocket.on('connect_error', (err) => {
@@ -170,9 +176,15 @@ export default function WorkspacePage({ params }: PageProps) {
         </div>
       )}
 
-      {!connected && !connectionError && (
+      {!connected && !connectionError && initializing && (
         <div className="px-4 py-2 bg-yellow-900/50 border-b border-yellow-700 text-sm text-yellow-300 flex-shrink-0">
           Connecting to workspace…
+        </div>
+      )}
+
+      {!connected && !connectionError && !initializing && (
+        <div className="px-4 py-2 bg-yellow-900/50 border-b border-yellow-700 text-sm text-yellow-300 flex-shrink-0">
+          Reconnecting…
         </div>
       )}
 
