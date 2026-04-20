@@ -132,6 +132,12 @@ app.get("/healthz", (_req, res) => {
   res.status(200).send("OK")
 })
 
+// 404 handler — logs unmatched routes to help debug missing routes
+app.use((req: Request, res: Response) => {
+  console.error(`[404] No route matched: ${req.method} ${req.path}`)
+  res.status(404).json({ error: `Cannot ${req.method} ${req.path}` })
+})
+
 // Global error-handling middleware — must be registered after all routes
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
@@ -140,7 +146,7 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 })
 
 const PORT = parseInt(process.env.PORT || '3001', 10)
-const BUILD_VERSION = '2.0.0' // bump to force Railway rebuild
+const BUILD_VERSION = '2.0.1' // bumped to force Railway rebuild
 
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Server is running on port ${PORT}`)

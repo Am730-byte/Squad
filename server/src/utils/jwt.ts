@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken"
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret"
+const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-in-production"
 
 console.log('[JWT] JWT_SECRET configured:', JWT_SECRET ? 'yes (length: ' + JWT_SECRET.length + ')' : 'no')
 
