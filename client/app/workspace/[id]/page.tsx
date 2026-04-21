@@ -55,7 +55,7 @@ export default function WorkspacePage({ params }: PageProps) {
 
   // Connect to Socket.IO once session and workspaceId are available
   useEffect(() => {
-    if (!session?.user || !workspaceId) return
+    if (status !== 'authenticated' || !session?.user || !workspaceId) return
 
     let newSocket: Socket | null = null
 
@@ -125,6 +125,17 @@ export default function WorkspacePage({ params }: PageProps) {
           )
         })
 
+        // Update participant media state when they toggle mic/camera
+        newSocket.on('participant:media-state', (data: { userId: string; isVideoEnabled: boolean; isAudioEnabled: boolean }) => {
+          setParticipants((prev) =>
+            prev.map((p) =>
+              p.userId === data.userId
+                ? { ...p, isVideoEnabled: data.isVideoEnabled, isAudioEnabled: data.isAudioEnabled }
+                : p
+            )
+          )
+        })
+
         setSocket(newSocket)
       })
       .catch((err) => {
@@ -139,7 +150,7 @@ export default function WorkspacePage({ params }: PageProps) {
       setConnected(false)
       setParticipants([])
     }
-  }, [session, workspaceId])
+  }, [status, workspaceId])
 
   // Show loading while session is being fetched
   if (status === 'loading' || !workspaceId) {
@@ -161,12 +172,25 @@ export default function WorkspacePage({ params }: PageProps) {
 
   const currentUserId = session.user.id
 
+  function leaveWorkspace() {
+    socket?.disconnect()
+    window.location.href = '/dashboard'
+  }
+
   return (
     <div className="flex flex-col h-screen bg-gray-950 overflow-hidden">
       {/* Top bar with workspace ID and invite */}
       <div className="flex items-center justify-between px-4 py-2 bg-gray-900 border-b border-gray-800 flex-shrink-0">
         <span className="text-sm font-medium text-white">Workspace</span>
-        <InviteButton workspaceId={workspaceId} />
+        <div className="flex items-center gap-3">
+          <InviteButton workspaceId={workspaceId} />
+          <button
+            onClick={leaveWorkspace}
+            className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white text-xs font-medium rounded-lg transition-colors"
+          >
+            Leave
+          </button>
+        </div>
       </div>
 
       {/* Connection status banner */}

@@ -44,6 +44,19 @@ export default function VideoPanel({
     }
   }, [localStream])
 
+  // When localStream becomes available, add its tracks to any existing peer connections
+  useEffect(() => {
+    if (!localStream) return
+    peerConnections.current.forEach((pc) => {
+      const existingKinds = pc.getSenders().map((s) => s.track?.kind)
+      localStream.getTracks().forEach((track) => {
+        if (!existingKinds.includes(track.kind)) {
+          pc.addTrack(track, localStream)
+        }
+      })
+    })
+  }, [localStream])
+
   // Create a peer connection for a remote user
   const createPeerConnection = useCallback(
     (remoteUserId: string): RTCPeerConnection => {
@@ -237,13 +250,44 @@ export default function VideoPanel({
   }, [])
 
   // Toggle video track on/off
-  const toggleVideo = () => {
+  const toggleVideo = async () => {
     if (!localStream) return
-    const videoTrack = localStream.getVideoTracks()[0]
-    if (!videoTrack) return
     const newEnabled = !isVideoEnabled
-    videoTrack.enabled = newEnabled
-    setIsVideoEnabled(newEnabled)
+
+    if (!newEnabled) {
+      // Turning off: just disable the track
+      localStream.getVideoTracks().forEach((t) => {
+        t.enabled = false
+        t.stop()
+      })
+      setIsVideoEnabled(false)
+    } else {
+      // Turning on: get a fresh video track
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({ video: true })
+        const newVideoTrack = newStream.getVideoTracks()[0]
+
+        // Replace track in all peer connections
+        peerConnections.current.forEach((pc) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
+          if (sender) sender.replaceTrack(newVideoTrack)
+        })
+
+        // Replace track in local stream
+        localStream.getVideoTracks().forEach((t) => localStream.removeTrack(t))
+        localStream.addTrack(newVideoTrack)
+
+        // Re-attach to local video element
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStream
+        }
+
+        setIsVideoEnabled(true)
+      } catch (err) {
+        console.error('Failed to re-enable video:', err)
+      }
+    }
+
     socket?.emit('media:state', { isVideoEnabled: newEnabled, isAudioEnabled })
   }
 
