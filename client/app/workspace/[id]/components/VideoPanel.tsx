@@ -39,6 +39,7 @@ export default function VideoPanel({
   // Keep a ref to localStream so callbacks always have the latest value
   // without needing it as a useCallback/useEffect dependency
   const localStreamRef = useRef<MediaStream | null>(null)
+  const audioMeterRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Attach local stream to local video element
   useEffect(() => {
@@ -134,8 +135,12 @@ export default function VideoPanel({
         localStreamRef.current = stream
         setLocalStream(stream)
         setMediaError(null)
+        console.log('[MEDIA] getUserMedia success — tracks:', stream.getTracks().map(t => ({
+          kind: t.kind, label: t.label, enabled: t.enabled, readyState: t.readyState
+        })))
       } catch (err) {
         const error = err as Error
+        console.error('[MEDIA] getUserMedia failed:', error.name, error.message)
         if (
           error.name === 'NotAllowedError' ||
           error.name === 'PermissionDeniedError'
@@ -156,6 +161,50 @@ export default function VideoPanel({
       localStreamRef.current = null
     }
   }, [])
+
+  // Audio loudness meter — logs score 1-10 every second
+  useEffect(() => {
+    if (!localStream) return
+
+    const audioTracks = localStream.getAudioTracks()
+    if (audioTracks.length === 0) {
+      console.warn('[AUDIO METER] No audio tracks in stream')
+      return
+    }
+
+    let audioCtx: AudioContext | null = null
+    let analyser: AnalyserNode | null = null
+
+    try {
+      audioCtx = new AudioContext()
+      analyser = audioCtx.createAnalyser()
+      analyser.fftSize = 256
+      const source = audioCtx.createMediaStreamSource(localStream)
+      source.connect(analyser)
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+      audioMeterRef.current = setInterval(() => {
+        if (!analyser) return
+        analyser.getByteFrequencyData(dataArray)
+        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+        // avg is 0-255, map to 1-10
+        const score = Math.max(1, Math.min(10, Math.round((avg / 255) * 10) || 1))
+        if (avg > 5) {
+          console.log(`[AUDIO METER] Loudness score: ${score}/10 (raw avg: ${avg.toFixed(1)})`)
+        }
+      }, 1000)
+
+      console.log('[AUDIO METER] Started monitoring audio loudness')
+    } catch (err) {
+      console.error('[AUDIO METER] Failed to start audio meter:', err)
+    }
+
+    return () => {
+      if (audioMeterRef.current) clearInterval(audioMeterRef.current)
+      audioCtx?.close()
+      console.log('[AUDIO METER] Stopped')
+    }
+  }, [localStream])
 
   // Register socket event handlers for WebRTC signaling
   useEffect(() => {
@@ -265,20 +314,39 @@ export default function VideoPanel({
     const newEnabled = !isVideoEnabled
 
     if (!newEnabled) {
-      stream.getVideoTracks().forEach((t) => {
+      console.log('[VIDEO] Turning OFF camera')
+      const tracks = stream.getVideoTracks()
+      console.log(`[VIDEO] Found ${tracks.length} video track(s):`, tracks.map(t => ({
+        id: t.id, label: t.label, enabled: t.enabled, readyState: t.readyState
+      })))
+      tracks.forEach((t) => {
         t.enabled = false
         t.stop()
+        console.log(`[VIDEO] Track stopped — readyState: ${t.readyState}`)
       })
       setIsVideoEnabled(false)
+      console.log('[VIDEO] Camera OFF complete')
     } else {
+      console.log('[VIDEO] Turning ON camera — requesting new getUserMedia')
       try {
         const newStream = await navigator.mediaDevices.getUserMedia({ video: true })
         const newVideoTrack = newStream.getVideoTracks()[0]
+        console.log('[VIDEO] Got new video track:', {
+          id: newVideoTrack.id,
+          label: newVideoTrack.label,
+          readyState: newVideoTrack.readyState,
+          enabled: newVideoTrack.enabled,
+        })
 
         // Replace track in all peer connections
-        peerConnections.current.forEach((pc) => {
+        peerConnections.current.forEach((pc, userId) => {
           const sender = pc.getSenders().find((s) => s.track?.kind === 'video')
-          if (sender) sender.replaceTrack(newVideoTrack)
+          if (sender) {
+            sender.replaceTrack(newVideoTrack)
+            console.log(`[VIDEO] replaceTrack called for peer: ${userId}`)
+          } else {
+            console.warn(`[VIDEO] No video sender found for peer: ${userId}`)
+          }
         })
 
         // Replace track in local stream
@@ -288,11 +356,13 @@ export default function VideoPanel({
         // Re-attach to local video element
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream
+          console.log('[VIDEO] Re-attached stream to local video element')
         }
 
         setIsVideoEnabled(true)
+        console.log('[VIDEO] Camera ON complete')
       } catch (err) {
-        console.error('Failed to re-enable video:', err)
+        console.error('[VIDEO] Failed to re-enable video:', err)
       }
     }
 
@@ -304,9 +374,19 @@ export default function VideoPanel({
     const stream = localStreamRef.current
     if (!stream) return
     const audioTrack = stream.getAudioTracks()[0]
-    if (!audioTrack) return
+    if (!audioTrack) {
+      console.warn('[AUDIO] No audio track found in stream')
+      return
+    }
     const newEnabled = !isAudioEnabled
     audioTrack.enabled = newEnabled
+    console.log(`[AUDIO] Mic ${newEnabled ? 'UNMUTED' : 'MUTED'} — track:`, {
+      id: audioTrack.id,
+      label: audioTrack.label,
+      enabled: audioTrack.enabled,
+      readyState: audioTrack.readyState,
+      muted: audioTrack.muted,
+    })
     setIsAudioEnabled(newEnabled)
     socket?.emit('media:state', { isVideoEnabled, isAudioEnabled: newEnabled })
   }
