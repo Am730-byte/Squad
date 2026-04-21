@@ -36,6 +36,9 @@ export default function VideoPanel({
 
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map())
   const localVideoRef = useRef<HTMLVideoElement>(null)
+  // Keep a ref to localStream so callbacks always have the latest value
+  // without needing it as a useCallback/useEffect dependency
+  const localStreamRef = useRef<MediaStream | null>(null)
 
   // Attach local stream to local video element
   useEffect(() => {
@@ -45,8 +48,10 @@ export default function VideoPanel({
   }, [localStream])
 
   // When localStream becomes available, add its tracks to any existing peer connections
+  // and renegotiate so the remote peer gets audio+video
   useEffect(() => {
     if (!localStream) return
+    localStreamRef.current = localStream
     peerConnections.current.forEach((pc) => {
       const existingKinds = pc.getSenders().map((s) => s.track?.kind)
       localStream.getTracks().forEach((track) => {
@@ -87,17 +92,19 @@ export default function VideoPanel({
         }
       }
 
-      // Add local tracks to the peer connection if available
-      if (localStream) {
-        localStream.getTracks().forEach((track) => {
-          pc.addTrack(track, localStream)
+      // Add local tracks using the ref — always has the latest stream
+      // even if getUserMedia hasn't resolved yet when this is first called
+      const stream = localStreamRef.current
+      if (stream) {
+        stream.getTracks().forEach((track) => {
+          pc.addTrack(track, stream)
         })
       }
 
       peerConnections.current.set(remoteUserId, pc)
       return pc
     },
-    [socket, localStream]
+    [socket] // no longer depends on localStream — uses ref instead
   )
 
   // Close and clean up a peer connection
@@ -124,6 +131,7 @@ export default function VideoPanel({
           video: true,
           audio: true,
         })
+        localStreamRef.current = stream
         setLocalStream(stream)
         setMediaError(null)
       } catch (err) {
@@ -145,6 +153,7 @@ export default function VideoPanel({
 
     return () => {
       stream?.getTracks().forEach((track) => track.stop())
+      localStreamRef.current = null
     }
   }, [])
 
@@ -251,18 +260,17 @@ export default function VideoPanel({
 
   // Toggle video track on/off
   const toggleVideo = async () => {
-    if (!localStream) return
+    const stream = localStreamRef.current
+    if (!stream) return
     const newEnabled = !isVideoEnabled
 
     if (!newEnabled) {
-      // Turning off: just disable the track
-      localStream.getVideoTracks().forEach((t) => {
+      stream.getVideoTracks().forEach((t) => {
         t.enabled = false
         t.stop()
       })
       setIsVideoEnabled(false)
     } else {
-      // Turning on: get a fresh video track
       try {
         const newStream = await navigator.mediaDevices.getUserMedia({ video: true })
         const newVideoTrack = newStream.getVideoTracks()[0]
@@ -274,12 +282,12 @@ export default function VideoPanel({
         })
 
         // Replace track in local stream
-        localStream.getVideoTracks().forEach((t) => localStream.removeTrack(t))
-        localStream.addTrack(newVideoTrack)
+        stream.getVideoTracks().forEach((t) => stream.removeTrack(t))
+        stream.addTrack(newVideoTrack)
 
         // Re-attach to local video element
         if (localVideoRef.current) {
-          localVideoRef.current.srcObject = localStream
+          localVideoRef.current.srcObject = stream
         }
 
         setIsVideoEnabled(true)
@@ -293,8 +301,9 @@ export default function VideoPanel({
 
   // Toggle audio track on/off
   const toggleAudio = () => {
-    if (!localStream) return
-    const audioTrack = localStream.getAudioTracks()[0]
+    const stream = localStreamRef.current
+    if (!stream) return
+    const audioTrack = stream.getAudioTracks()[0]
     if (!audioTrack) return
     const newEnabled = !isAudioEnabled
     audioTrack.enabled = newEnabled
