@@ -84,6 +84,7 @@ export default function VideoPanel({
       // When a remote track arrives, add it to remoteStreams state
       pc.ontrack = (event) => {
         const [stream] = event.streams
+        console.log(`[WEBRTC] ontrack fired from ${remoteUserId} — kind: ${event.track.kind}, streams: ${event.streams.length}`)
         if (stream) {
           setRemoteStreams((prev) => {
             const next = new Map(prev)
@@ -91,6 +92,14 @@ export default function VideoPanel({
             return next
           })
         }
+      }
+
+      pc.onconnectionstatechange = () => {
+        console.log(`[WEBRTC] Connection state with ${remoteUserId}: ${pc.connectionState}`)
+      }
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[WEBRTC] ICE connection state with ${remoteUserId}: ${pc.iceConnectionState}`)
       }
 
       // Add local tracks using the ref — always has the latest stream
@@ -216,13 +225,19 @@ export default function VideoPanel({
     }: {
       targetUserId: string
     }) => {
+      console.log(`[WEBRTC] webrtc:create-offer received — creating offer for ${targetUserId}`)
+      console.log(`[WEBRTC] localStream at offer time:`, localStreamRef.current ? 
+        localStreamRef.current.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState })) 
+        : 'NULL — no stream yet!')
       const pc = createPeerConnection(targetUserId)
+      console.log(`[WEBRTC] PeerConnection state: ${pc.signalingState}, senders: ${pc.getSenders().length}`)
       try {
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
         socket.emit('webrtc:offer', { targetUserId, offer })
+        console.log(`[WEBRTC] Offer sent to ${targetUserId}`)
       } catch (err) {
-        console.error('Error creating offer:', err)
+        console.error('[WEBRTC] Error creating offer:', err)
       }
     }
 
@@ -234,14 +249,20 @@ export default function VideoPanel({
       fromUserId: string
       offer: RTCSessionDescriptionInit
     }) => {
+      console.log(`[WEBRTC] webrtc:offer received from ${fromUserId}`)
+      console.log(`[WEBRTC] localStream at answer time:`, localStreamRef.current ?
+        localStreamRef.current.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState }))
+        : 'NULL — no stream yet!')
       const pc = createPeerConnection(fromUserId)
+      console.log(`[WEBRTC] PeerConnection senders before answer: ${pc.getSenders().length}`)
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer))
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
         socket.emit('webrtc:answer', { targetUserId: fromUserId, answer })
+        console.log(`[WEBRTC] Answer sent to ${fromUserId}`)
       } catch (err) {
-        console.error('Error handling offer:', err)
+        console.error('[WEBRTC] Error handling offer:', err)
       }
     }
 
@@ -253,12 +274,17 @@ export default function VideoPanel({
       fromUserId: string
       answer: RTCSessionDescriptionInit
     }) => {
+      console.log(`[WEBRTC] webrtc:answer received from ${fromUserId}`)
       const pc = peerConnections.current.get(fromUserId)
-      if (!pc) return
+      if (!pc) {
+        console.error(`[WEBRTC] No peer connection found for ${fromUserId} when handling answer!`)
+        return
+      }
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(answer))
+        console.log(`[WEBRTC] Remote description set for ${fromUserId}, connection state: ${pc.connectionState}`)
       } catch (err) {
-        console.error('Error handling answer:', err)
+        console.error('[WEBRTC] Error handling answer:', err)
       }
     }
 
@@ -271,19 +297,24 @@ export default function VideoPanel({
       candidate: RTCIceCandidateInit
     }) => {
       const pc = peerConnections.current.get(fromUserId)
-      if (!pc) return
+      if (!pc) {
+        console.warn(`[WEBRTC] ICE candidate received but no peer connection for ${fromUserId}`)
+        return
+      }
       try {
         await pc.addIceCandidate(new RTCIceCandidate(candidate))
       } catch (err) {
-        console.error('Error adding ICE candidate:', err)
+        console.error('[WEBRTC] Error adding ICE candidate:', err)
       }
     }
 
     // A peer disconnected — clean up their connection
     const handlePeerDisconnected = ({ userId }: { userId: string }) => {
+      console.log(`[WEBRTC] Peer disconnected: ${userId}`)
       closePeerConnection(userId)
     }
 
+    console.log('[WEBRTC] Registering socket event handlers')
     socket.on('webrtc:create-offer', handleCreateOffer)
     socket.on('webrtc:offer', handleOffer)
     socket.on('webrtc:answer', handleAnswer)
@@ -291,6 +322,7 @@ export default function VideoPanel({
     socket.on('webrtc:peer-disconnected', handlePeerDisconnected)
 
     return () => {
+      console.log('[WEBRTC] Unregistering socket event handlers')
       socket.off('webrtc:create-offer', handleCreateOffer)
       socket.off('webrtc:offer', handleOffer)
       socket.off('webrtc:answer', handleAnswer)
