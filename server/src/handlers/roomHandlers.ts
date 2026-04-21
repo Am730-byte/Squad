@@ -71,6 +71,7 @@ export async function joinWorkspaceRoom(socket: Socket, io: Server): Promise<voi
     const participants = roomStateManager.getParticipants(workspaceId)
     socket.emit('room:state', {
       participants: participants.filter((p) => p.userId !== userId),
+      currentUserRole: membership.role,
     })
 
     // Broadcast user:joined to all other participants in the room
@@ -132,6 +133,75 @@ export async function joinWorkspaceRoom(socket: Socket, io: Server): Promise<voi
       } catch (err) {
         console.error('Handler error:', err)
         socket.emit('error', { message: 'An unexpected error occurred' })
+      }
+    })
+
+    // Admin: force-mute a participant
+    socket.on('admin:mute', async (data: { targetUserId: string }) => {
+      try {
+        const requesterMembership = await prisma.membership.findUnique({
+          where: { userId_workspaceId: { userId, workspaceId } },
+        })
+        if (!requesterMembership || !['owner', 'admin'].includes(requesterMembership.role)) {
+          socket.emit('error', { message: 'Not authorized' })
+          return
+        }
+        const target = roomStateManager.getParticipants(workspaceId).find(p => p.userId === data.targetUserId)
+        if (!target) return
+        io.to(target.socketId).emit('admin:force-mute')
+        console.log(`[ADMIN] ${userId} muted ${data.targetUserId}`)
+      } catch (err) {
+        console.error('admin:mute error:', err)
+      }
+    })
+
+    // Admin: kick a participant
+    socket.on('admin:kick', async (data: { targetUserId: string }) => {
+      try {
+        const requesterMembership = await prisma.membership.findUnique({
+          where: { userId_workspaceId: { userId, workspaceId } },
+        })
+        if (!requesterMembership || !['owner', 'admin'].includes(requesterMembership.role)) {
+          socket.emit('error', { message: 'Not authorized' })
+          return
+        }
+        const target = roomStateManager.getParticipants(workspaceId).find(p => p.userId === data.targetUserId)
+        if (!target) return
+        io.to(target.socketId).emit('admin:kicked')
+        setTimeout(() => {
+          const targetSocket = io.sockets.sockets.get(target.socketId)
+          targetSocket?.disconnect(true)
+        }, 500)
+        console.log(`[ADMIN] ${userId} kicked ${data.targetUserId}`)
+      } catch (err) {
+        console.error('admin:kick error:', err)
+      }
+    })
+
+    // Admin: ban a participant (kick + remove membership)
+    socket.on('admin:ban', async (data: { targetUserId: string }) => {
+      try {
+        const requesterMembership = await prisma.membership.findUnique({
+          where: { userId_workspaceId: { userId, workspaceId } },
+        })
+        if (!requesterMembership || !['owner', 'admin'].includes(requesterMembership.role)) {
+          socket.emit('error', { message: 'Not authorized' })
+          return
+        }
+        await prisma.membership.delete({
+          where: { userId_workspaceId: { userId: data.targetUserId, workspaceId } },
+        }).catch(() => { /* already removed */ })
+        const target = roomStateManager.getParticipants(workspaceId).find(p => p.userId === data.targetUserId)
+        if (target) {
+          io.to(target.socketId).emit('admin:kicked')
+          setTimeout(() => {
+            const targetSocket = io.sockets.sockets.get(target.socketId)
+            targetSocket?.disconnect(true)
+          }, 500)
+        }
+        console.log(`[ADMIN] ${userId} banned ${data.targetUserId} from ${workspaceId}`)
+      } catch (err) {
+        console.error('admin:ban error:', err)
       }
     })
   } catch (err) {
