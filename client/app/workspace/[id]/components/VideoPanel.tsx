@@ -385,11 +385,10 @@ export default function VideoPanel({
         stream.getVideoTracks().forEach((t) => stream.removeTrack(t))
         stream.addTrack(newVideoTrack)
 
-        // Re-attach to local video element
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream
-          console.log('[VIDEO] Re-attached stream to local video element')
-        }
+        // Trigger re-attach via the existing useEffect
+        const updatedStream = new MediaStream(stream.getTracks())
+        localStreamRef.current = updatedStream
+        setLocalStream(updatedStream)
 
         setIsVideoEnabled(true)
         console.log('[VIDEO] Camera ON complete')
@@ -453,17 +452,18 @@ export default function VideoPanel({
       <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 gap-3 content-start">
         {/* Local video tile */}
         <div className="relative bg-gray-800 rounded-lg overflow-hidden aspect-video">
-          {localStream && isVideoEnabled ? (
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-cover"
-              style={{ transform: 'scaleX(-1)' }}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
+          {/* Always render video element so ref is always valid */}
+          <video
+            ref={localVideoRef}
+            autoPlay
+            muted
+            playsInline
+            className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
+            style={{ transform: 'scaleX(-1)' }}
+          />
+          {/* Avatar shown when video is off */}
+          {(!localStream || !isVideoEnabled) && (
+            <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center">
                 <span className="text-lg font-bold text-white">
                   {currentUserName.charAt(0).toUpperCase()}
